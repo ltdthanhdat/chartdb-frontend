@@ -12,3 +12,5 @@ export const HIDE_CHARTDB_CLOUD: boolean =
 export const DISABLE_ANALYTICS: boolean =
     (window?.env?.DISABLE_ANALYTICS ??
         import.meta.env.VITE_DISABLE_ANALYTICS) === 'true';
+export const SYNC_API_URL: string =
+    window?.env?.SYNC_API_URL ?? import.meta.env.VITE_SYNC_API_URL ?? '';

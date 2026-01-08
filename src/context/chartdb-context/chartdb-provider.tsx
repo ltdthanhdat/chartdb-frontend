@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DBTable } from '@/lib/domain/db-table';
 import { deepCopy, generateId } from '@/lib/utils';
 import { defaultTableColor, defaultAreaColor, viewColor } from '@/lib/colors';
@@ -34,6 +34,7 @@ import {
     type DBCustomType,
 } from '@/lib/domain/db-custom-type';
 import { getDefaultPrimaryKeyType } from '@/lib/data/data-types/data-types';
+import { useSync } from '@/hooks/use-sync';
 
 export interface ChartDBProviderProps {
     diagram?: Diagram;
@@ -71,6 +72,13 @@ export const ChartDBProvider: React.FC<
         diagram?.customTypes ?? []
     );
     const [notes, setNotes] = useState<Note[]>(diagram?.notes ?? []);
+
+    const { pushDiagram } = useSync({
+        enabled: !readonlyProp,
+        onSyncError: (error) => {
+            console.error('Sync error:', error);
+        },
+    });
 
     const { events: diffEvents } = useDiff();
 
@@ -170,6 +178,14 @@ export const ChartDBProvider: React.FC<
             diagramUpdatedAt,
         ]
     );
+
+    useEffect(() => {
+        if (!diagramId || readonly) {
+            return;
+        }
+
+        pushDiagram(currentDiagram);
+    }, [currentDiagram, diagramId, readonly, pushDiagram]);
 
     const clearDiagramData: ChartDBContext['clearDiagramData'] =
         useCallback(async () => {
@@ -1933,14 +1949,42 @@ export const ChartDBProvider: React.FC<
 
     const loadDiagram: ChartDBContext['loadDiagram'] = useCallback(
         async (diagramId: string) => {
-            const diagram = await storageDB.getDiagram(diagramId, {
-                includeRelationships: true,
-                includeTables: true,
-                includeDependencies: true,
-                includeAreas: true,
-                includeCustomTypes: true,
-                includeNotes: true,
-            });
+            const syncService = await import('@/lib/sync-service').then((m) =>
+                m.getSyncService()
+            );
+
+            let diagram: Diagram | undefined;
+
+            if (syncService?.isEnabled) {
+                try {
+                    const remoteDiagram = await syncService.pull(diagramId);
+                    if (remoteDiagram) {
+                        console.log(
+                            '📥 Loaded diagram from backend:',
+                            diagramId
+                        );
+                        diagram = remoteDiagram;
+                        await storageDB.deleteDiagram(diagramId);
+                        await storageDB.addDiagram({ diagram: remoteDiagram });
+                    }
+                } catch (error) {
+                    console.warn(
+                        'Failed to pull from backend, using local:',
+                        error
+                    );
+                }
+            }
+
+            if (!diagram) {
+                diagram = await storageDB.getDiagram(diagramId, {
+                    includeRelationships: true,
+                    includeTables: true,
+                    includeDependencies: true,
+                    includeAreas: true,
+                    includeCustomTypes: true,
+                    includeNotes: true,
+                });
+            }
 
             if (diagram) {
                 loadDiagramFromData(diagram);
