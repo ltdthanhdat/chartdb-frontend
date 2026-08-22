@@ -206,18 +206,18 @@ export class SyncService {
         const diagrams = (await response.json()) as Array<{
             id: string;
             name: string;
-            database_type: string;
-            database_edition?: string;
-            created_at: string;
-            updated_at: string;
+            databaseType: string;
+            databaseEdition?: string;
+            createdAt: string;
+            updatedAt: string;
         }>;
         return diagrams.map((d) => ({
             id: d.id,
             name: d.name,
-            databaseType: d.database_type,
-            databaseEdition: d.database_edition,
-            createdAt: new Date(d.created_at),
-            updatedAt: new Date(d.updated_at),
+            databaseType: d.databaseType,
+            databaseEdition: d.databaseEdition,
+            createdAt: new Date(d.createdAt),
+            updatedAt: new Date(d.updatedAt),
         }));
     }
 

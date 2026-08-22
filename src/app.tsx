@@ -7,15 +7,15 @@ import { HelmetProvider } from 'react-helmet-async';
 import { initSyncService } from './lib/sync-service';
 import { SYNC_API_URL } from './lib/env';
 
+const syncEnabled = !!SYNC_API_URL;
+
+initSyncService({
+    apiUrl: SYNC_API_URL,
+    enabled: syncEnabled,
+});
+
 export const App = () => {
     useEffect(() => {
-        const syncEnabled = !!SYNC_API_URL;
-
-        initSyncService({
-            apiUrl: SYNC_API_URL,
-            enabled: syncEnabled,
-        });
-
         if (syncEnabled) {
             console.log('🔄 Sync service initialized:', SYNC_API_URL);
         } else {
