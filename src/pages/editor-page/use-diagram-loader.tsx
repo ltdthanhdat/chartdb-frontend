@@ -5,11 +5,10 @@ import { useFullScreenLoader } from '@/hooks/use-full-screen-spinner';
 import { useRedoUndoStack } from '@/hooks/use-redo-undo-stack';
 import { useStorage } from '@/hooks/use-storage';
 import type { Diagram } from '@/lib/domain/diagram';
-import type { DatabaseType } from '@/lib/domain/database-type';
-import type { DatabaseEdition } from '@/lib/domain/database-edition';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSync } from '@/hooks/use-sync';
+import { mergeRemoteDiagramMetadata } from '@/lib/remote-diagram-sync';
 
 export const useDiagramLoader = () => {
     const [initialDiagram, setInitialDiagram] = useState<Diagram | undefined>();
@@ -35,6 +34,32 @@ export const useDiagramLoader = () => {
         }
 
         const loadDefaultDiagram = async () => {
+            if (!diagramId) {
+                try {
+                    const remoteDiagrams = await listRemoteDiagrams();
+                    if (remoteDiagrams.length > 0) {
+                        console.log(
+                            `📋 Found ${remoteDiagrams.length} diagrams on server`
+                        );
+                        const localDiagrams = await listDiagrams();
+                        const localIds = new Set(
+                            localDiagrams.map((d: Diagram) => d.id)
+                        );
+
+                        await mergeRemoteDiagramMetadata({
+                            remoteDiagrams,
+                            localDiagramIds: localIds,
+                            addDiagram,
+                        });
+                    }
+                } catch (error) {
+                    console.warn(
+                        'Failed to sync diagram list from backend:',
+                        error
+                    );
+                }
+            }
+
             if (diagramId) {
                 setInitialDiagram(undefined);
                 showLoader();
@@ -58,42 +83,6 @@ export const useDiagramLoader = () => {
 
                     return;
                 }
-            }
-
-            try {
-                const remoteDiagrams = await listRemoteDiagrams();
-                if (remoteDiagrams.length > 0) {
-                    console.log(
-                        `📋 Found ${remoteDiagrams.length} diagrams on server`
-                    );
-                    const localDiagrams = await listDiagrams();
-                    const localIds = new Set(
-                        localDiagrams.map((d: Diagram) => d.id)
-                    );
-
-                    for (const remote of remoteDiagrams) {
-                        if (!localIds.has(remote.id)) {
-                            await addDiagram({
-                                diagram: {
-                                    id: remote.id,
-                                    name: remote.name,
-                                    databaseType:
-                                        remote.databaseType as DatabaseType,
-                                    databaseEdition: remote.databaseEdition as
-                                        | DatabaseEdition
-                                        | undefined,
-                                    createdAt: remote.createdAt,
-                                    updatedAt: remote.updatedAt,
-                                },
-                            });
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn(
-                    'Failed to sync diagram list from backend:',
-                    error
-                );
             }
 
             const diagrams = await listDiagrams();
